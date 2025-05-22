@@ -1,0 +1,49 @@
+#include <Servo.h>
+
+#define trigPin 9
+#define echoPin 11
+
+Servo myservo;
+
+long duration;
+int distance;
+
+int calculateDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  duration = pulseIn(echoPin, HIGH);
+  distance = duration * 0.034 / 2;
+  return distance;
+}
+
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  myservo.attach(10);
+  Serial.begin(9600);
+}
+
+void loop() {
+  
+  for (int pos = 0; pos <= 180; pos++) {
+    myservo.write(pos);
+    delay(15);
+    int dist = calculateDistance();
+    Serial.print(pos);
+    Serial.print(",");
+    Serial.println(dist);
+  }
+
+  
+  for (int pos = 180; pos >= 0; pos--) {
+    myservo.write(pos);
+    delay(15);
+    int dist = calculateDistance();
+    Serial.print(pos);
+    Serial.print(",");
+    Serial.println(dist);
+  }
+}
