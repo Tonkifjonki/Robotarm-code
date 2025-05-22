@@ -1,0 +1,53 @@
+#include <Servo.h>
+
+Servo servos[6];
+int servoPins[6] = {2, 3, 4, 5, 6, 7};
+
+
+int targetAngle[6] = {90, 90, 90, 90, 90, 90};
+
+int currentAngle[6] = {90, 90, 90, 90, 90, 90};
+
+int stepSize[6] = {1, 1, 1, 1, 1, 1};
+
+unsigned long updateInterval[6] = {20, 20, 20, 20, 20, 20};
+
+unsigned long lastUpdate[6] = {0, 0, 0, 0, 0, 0};
+
+void setup() {
+for (int i = 0; i < 6; i++) {
+servos[i].attach(servoPins[i]);
+servos[i].write(currentAngle[i]);
+lastUpdate[i] = millis();
+}
+}
+
+void loop() {
+unsigned long now = millis();
+
+for (int i = 0; i < 6; i++) {
+if (now - lastUpdate[i] >= updateInterval[i]) {
+lastUpdate[i] = now;
+
+if (currentAngle[i] < targetAngle[i]) {
+currentAngle[i] += stepSize[i];
+if (currentAngle[i] > targetAngle[i]) currentAngle[i] = targetAngle[i];
+servos[i].write(currentAngle[i]);
+} else if (currentAngle[i] > targetAngle[i]) {
+currentAngle[i] -= stepSize[i];
+if (currentAngle[i] < targetAngle[i]) currentAngle[i] = targetAngle[i];
+servos[i].write(currentAngle[i]);
+}
+}
+}
+
+
+if (now % 5000 < 10) {
+targetAngle[0] = random(0, 181);
+targetAngle[1] = random(0, 181);
+targetAngle[2] = random(0, 181);
+targetAngle[3] = random(0, 181);
+targetAngle[4] = random(0, 181);
+targetAngle[5] = random(0, 181);
+}
+}
