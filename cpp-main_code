@@ -1,0 +1,380 @@
+
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESP32Servo.h>
+
+WebServer server(80);
+
+const char* ssid = "RobotArmController";
+const char* password = "123456789";
+
+Servo servoBase;
+Servo servoShoulder;
+Servo servoElbow;
+Servo servoWrist;
+Servo servoGrip;
+Servo servoExtra;
+
+int basePos = 90;
+int shoulderPos = 90;
+int elbowPos = 90;
+int wristPos = 90;
+int gripPos = 90;
+int extraPos = 90;
+
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void handleRoot() {
+server.send(200, "text/html", webpage);
+}
+
+void handleControl() {
+if (server.hasArg("rot")) {
+String rot = server.arg("rot");
+float rotX = rot.substring(0, rot.indexOf(',')).toFloat();
+float rotY = rot.substring(rot.indexOf(',') + 1).toFloat();
+basePos = mapFloat(rotX, -1.0, 1.0, 0, 180);
+wristPos = mapFloat(rotY, -1.0, 1.0, 0, 180);
+servoBase.write(basePos);
+servoWrist.write(wristPos);
+}
+
+if (server.hasArg("x")) {
+float x = server.arg("x").toFloat();
+shoulderPos = mapFloat(x, -1.0, 1.0, 0, 180);
+servoShoulder.write(shoulderPos);
+}
+
+if (server.hasArg("y")) {
+float y = server.arg("y").toFloat();
+elbowPos = mapFloat(y, -1.0, 1.0, 0, 180);
+servoElbow.write(elbowPos);
+}
+
+if (server.hasArg("z")) {
+float z = server.arg("z").toFloat();
+extraPos = mapFloat(z, -1.0, 1.0, 0, 180);
+servoExtra.write(extraPos);
+}
+
+if (server.hasArg("grip")) {
+float grip = server.arg("grip").toFloat();
+gripPos = mapFloat(grip, 0.0, 1.0, 0, 180);
+servoGrip.write(gripPos);
+}
+
+server.send(200, "text/plain", "OK");
+}
+
+void handleGrip() {
+if (server.hasArg("state")) {
+int state = server.arg("state").toInt();
+gripPos = state == 1 ? 180 : 0;
+servoGrip.write(gripPos);
+}
+server.send(200, "text/plain", "OK");
+}
+
+void setup() {
+Serial.begin(115200);
+
+servoBase.attach(13);
+servoShoulder.attach(12);
+servoElbow.attach(14);
+servoWrist.attach(27);
+servoGrip.attach(26);
+servoExtra.attach(25);
+
+WiFi.softAP(ssid, password);
+IPAddress IP = WiFi.softAPIP();
+Serial.print("AP IP address: ");
+Serial.println(IP);
+
+server.on("/", handleRoot);
+server.on("/control", handleControl);
+server.on("/grip", handleGrip);
+
+server.begin();
+}
+
+void loop() {
+server.handleClient();
+}
+
+const char webpage[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Arm Control</title>
+     <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --joystick-bg: #2a2a2a;
+            --joystick-thumb: #666;
+            --button-bg: #2d572c;
+            --button-bg-release: #572d2c;
+            --border-color: #404040;
+        }
+
+        body {
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+        }
+
+        h2 {
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            width: 45%;
+        }
+    
+    #rotations, #axis2 { margin-right: auto; } 
+    #axis1, #axis3 { margin-left: auto; }  
+
+    .joystick-label {
+        font-size: 0.85em;
+        padding: 0 5px;
+    }
+
+    @media (max-width: 480px) {
+        .joystick-label {
+            font-size: 0.75em;
+        }
+    }
+
+        .joystick-container {
+             width: 100%;
+            aspect-ratio: 1;
+            background-color: #2a2a2a;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .joystick-label {
+        font-size: 0.85em;
+        padding: 0 5px;
+    }
+        .joystick-thumb {
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            background-color: var(--joystick-thumb);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            touch-action: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        #gripBtn {
+            grid-column: span 2;
+            padding: 20px;
+            margin: 10px;
+            font-size: 1.2em;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+             position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+        }
+
+        #gripBtn.release {
+            background-color: var(--button-bg-release);
+        }
+
+        #gripBtn:active {
+            transform: scale(0.95);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        @media (max-width: 600px) {
+    .container {
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+    
+    .column {
+        width: 80%;
+    }
+    
+    #gripBtn {
+        width: 80%;
+        bottom: 20px;
+    }
+}
+    </style>
+</head>
+<body>
+    <h2>Robot Arm Control</h2>
+<div class="container">
+    <div class="column">
+        <div class="joystick-container" id="rotations">
+            <div class="joystick-thumb"></div>
+            <div class="joystick-label">Rotations (X/Y)</div>
+        </div>
+        <div class="joystick-container" id="axis1">
+            <div class="joystick-thumb"></div>
+            <div class="joystick-label">X Axis</div>
+        </div>
+    </div>
+    <div class="column">
+        <div class="joystick-container" id="axis2">
+            <div class="joystick-thumb"></div>
+            <div class="joystick-label">Y Axis</div>
+        </div>
+        <div class="joystick-container" id="axis3">
+            <div class="joystick-thumb"></div>
+            <div class="joystick-label">Z Axis</div>
+        </div>
+    </div>
+    <button id="gripBtn">Grip</button>
+</div>
+
+    <script>
+        class Joystick {
+    constructor(container, onMove) {
+        this.container = container;
+        this.thumb = container.querySelector('.joystick-thumb');
+        this.onMove = onMove;
+        this.isTouching = false;
+        this.rect = null;
+        this.center = { x: 0, y: 0 };
+        this.position = { x: 0, y: 0 }; // Stores current position
+
+        this.init();
+    }
+
+    init() {
+        this.container.addEventListener('touchstart', (e) => this.handleStart(e));
+        this.container.addEventListener('mousedown', (e) => this.handleStart(e));
+        document.addEventListener('touchmove', (e) => this.handleMove(e));
+        document.addEventListener('mousemove', (e) => this.handleMove(e));
+        document.addEventListener('touchend', () => this.handleEnd());
+        document.addEventListener('mouseup', () => this.handleEnd());
+
+        this.rect = this.container.getBoundingClientRect();
+        this.center = {
+            x: this.rect.width / 2,
+            y: this.rect.height / 2
+        };
+        // Start at center position
+        this.updateThumb(this.center.x, this.center.y);
+    }
+
+    handleStart(e) {
+        e.preventDefault();
+        this.isTouching = true;
+        this.rect = this.container.getBoundingClientRect();
+        
+        // Start movement from current thumb position
+        const thumbRect = this.thumb.getBoundingClientRect();
+        const initialX = thumbRect.left - this.rect.left + thumbRect.width/2;
+        const initialY = thumbRect.top - this.rect.top + thumbRect.height/2;
+        
+        // Update position based on current thumb location
+        this.position = {
+            x: (initialX - this.center.x) / this.center.x,
+            y: (initialY - this.center.y) / this.center.y
+        };
+    }
+
+    handleMove(e) {
+        if (!this.isTouching) return;
+        e.preventDefault();
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        let x = clientX - this.rect.left;
+        let y = clientY - this.rect.top;
+        
+        // Constrain to container bounds
+        x = Math.max(0, Math.min(x, this.rect.width));
+        y = Math.max(0, Math.min(y, this.rect.height));
+        
+        this.updateThumb(x, y);
+        this.position = {
+            x: (x - this.center.x) / this.center.x,
+            y: (y - this.center.y) / this.center.y
+        };
+        this.onMove(this.position);
+    }
+
+    handleEnd() {
+        this.isTouching = false;
+        // No longer reset to center
+        // Position values remain at last known values
+    }
+
+    updateThumb(x, y) {
+        this.thumb.style.left = x + 'px';
+        this.thumb.style.top = y + 'px';
+    }
+}
+
+
+const joysticks = {
+    rotations: new Joystick(document.getElementById('rotations'), 
+        (pos) => sendData('rot', pos.x, pos.y)),
+    axis1: new Joystick(document.getElementById('axis1'), 
+        (pos) => sendData('x', pos.x)),  // X-axis from joystick X
+    axis2: new Joystick(document.getElementById('axis2'), 
+        (pos) => sendData('y', pos.y)),  // Y-axis from joystick Y
+    axis3: new Joystick(document.getElementById('axis3'), 
+        (pos) => sendData('z', pos.y))   // Z-axis from joystick Y
+};
+
+        // Grip button
+        let gripState = false;
+        const gripBtn = document.getElementById('gripBtn');
+        gripBtn.addEventListener('click', () => {
+            gripState = !gripState;
+            gripBtn.textContent = gripState ? 'Release' : 'Grip';
+            gripBtn.classList.toggle('release');
+            fetch(`/grip?state=${gripState ? 1 : 0}`);
+        });
+        function sendData(joystickId, position) {
+            let url = `/control?${joystickId}=`;
+            if (joystickId === 'joy3') {
+                url += position.toFixed(2);
+            } else {
+                url += `${position.x.toFixed(2)},${position.y.toFixed(2)}`;
+            }
+            fetch(url);
+        }
+    </script>
+</body>
+</html>
+)=====";
